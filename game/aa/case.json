@@ -1,0 +1,208 @@
+{
+    "version": "1.0",
+    "id": "test_case_001",
+    "title": "逆转裁判：测试案件",
+    "author": "GyakutenMaker",
+    "entry": "intro",
+    "nodes": {
+
+        "intro": {
+            "type": "dialogue",
+            "lines": [
+                { "text": "这是逆转裁判 Ren'Py 数据驱动引擎的功能测试。" },
+                { "text": "接下来将依次测试法庭询问和搜证系统。" }
+            ],
+            "next": "give_initial_evidence"
+        },
+
+        "give_initial_evidence": {
+            "type": "get_evidence",
+            "evidence_ids": ["autopsy_report", "thinker"],
+            "next": "courtroom_intro"
+        },
+
+        "courtroom_intro": {
+            "type": "dialogue",
+            "scene": "bg courtroom",
+            "show_health_bar": true,
+            "lines": [
+                { "character": "judge_aa", "text": "现在开始对证人山崎正夫的证言进行询问。" }
+            ],
+            "next": "testimony_main"
+        },
+
+        "testimony_main": {
+            "type": "testimony",
+            "title": "事件目击证言",
+            "witness": "sahwit",
+            "stmts": [
+                "那天晚上9点左右，我路过被害人公寓楼下。",
+                "我听到楼上传来争吵声。",
+                "于是我上楼查看，发现门是开着的。",
+                "我走进去，看到一个男人站在房间里。",
+                "我确信那个人就是被告！"
+            ],
+            "press_handlers": {
+                "2": {
+                    "lines": [
+                        { "character": "sahwit", "text": "门是开着的……所以我就直接走进去了。" },
+                        { "character": "phoenix", "text": "（门开着？这有点可疑……）" }
+                    ]
+                }
+            },
+            "present_handlers": {
+                "5": {
+                    "correct_evidence": ["thinker"],
+                    "on_correct": {
+                        "lines": [
+                            { "character": "phoenix", "text": "等一下！你说你看到了被告……" },
+                            { "character": "phoenix", "text": "但你有没有注意到这个雕像？" },
+                            { "character": "sahwit", "text": "那、那是……" }
+                        ],
+                        "penalty": 2
+                    }
+                },
+                "1": {
+                    "correct_evidence": ["autopsy_report"],
+                    "on_correct": {
+                        "lines": [
+                            { "character": "phoenix", "text": "你说是9点左右……但尸检报告显示死亡时间更早！" },
+                            { "character": "sahwit", "text": "这……这不可能……！" }
+                        ],
+                        "next": "testimony_done"
+                    }
+                }
+            },
+            "next": "testimony_done"
+        },
+
+        "testimony_done": {
+            "type": "dialogue",
+            "hide_health_bar": true,
+            "lines": [
+                { "character": "judge_aa", "text": "证人的证词出现重大矛盾！" }
+            ],
+            "next": "investigation_scene"
+        },
+
+        "investigation_scene": {
+            "type": "investigation",
+            "scene": "bg apartment",
+            "location_id": "crime_scene",
+            "intro_lines": [
+                { "text": "进入搜证阶段。使用 WASD 移动，E 键交互，ESC 退出。" }
+            ],
+            "hotspots": [
+                {
+                    "id": "statue_spot",
+                    "name": "雕像底座",
+                    "x": 800, "y": 400,
+                    "size_w": 150, "size_h": 150,
+                    "radius": 120,
+                    "lines": [
+                        { "text": "雕像底座上有明显的血迹反应。" },
+                        { "text": "看起来这里曾经放置过什么东西。" }
+                    ],
+                    "get_evidence": "floor_plan"
+                },
+                {
+                    "id": "window",
+                    "name": "窗户",
+                    "x": 1200, "y": 200,
+                    "size_w": 200, "size_h": 300,
+                    "radius": 130,
+                    "lines": [
+                        { "text": "窗户面向大街。从这里可以看到楼下的情况。" },
+                        { "text": "窗台上有一些灰尘痕迹。" }
+                    ]
+                },
+                {
+                    "id": "bookshelf",
+                    "name": "书架",
+                    "x": 200, "y": 300,
+                    "size_w": 180, "size_h": 400,
+                    "radius": 120,
+                    "lines": [
+                        { "text": "书架上摆满了各种书籍。" },
+                        { "text": "其中一本关于美术的书引起了注意。" }
+                    ],
+                    "get_evidence": "newspaper"
+                }
+            ],
+            "next": "talk_scene"
+        },
+
+        "talk_scene": {
+            "type": "dialogue",
+            "scene": "bg detention_center",
+            "lines": [
+                { "text": "前往拘留所与矢张政志对话。" }
+            ],
+            "next": "talk_larry"
+        },
+
+        "talk_larry": {
+            "type": "talk",
+            "npc_id": "larry",
+            "topics": [
+                {
+                    "name": "事件当天",
+                    "lines": [
+                        { "character": "larry", "text": "那天晚上我确实在辛迪公寓附近……" },
+                        { "character": "larry", "text": "但我没有进去！我发誓！" },
+                        { "character": "phoenix", "text": "（矢张看起来很紧张……）" }
+                    ]
+                },
+                {
+                    "name": "与被害人的关系",
+                    "lines": [
+                        { "character": "larry", "text": "辛迪是我的前女友……" },
+                        { "character": "larry", "text": "我们上个月分手了。" },
+                        { "character": "phoenix", "text": "（分手……这给了他动机？）" }
+                    ]
+                },
+                {
+                    "name": "关于雕像",
+                    "lines": [
+                        { "character": "larry", "text": "那个雕像？辛迪很喜欢它。" },
+                        { "character": "larry", "text": "是一个叫山崎的人送的。" },
+                        { "character": "phoenix", "text": "山崎……等等，那不就是证人吗！" }
+                    ]
+                }
+            ],
+            "present_handlers": [
+                {
+                    "evidence_id": "thinker",
+                    "lines": [
+                        { "character": "larry", "text": "这个雕像！就是辛迪房间里的那个！" },
+                        { "character": "larry", "text": "我之前见过它，就在书架旁边。" }
+                    ]
+                },
+                {
+                    "evidence_id": "autopsy_report",
+                    "lines": [
+                        { "character": "larry", "text": "死亡时间是9点到10点……" },
+                        { "character": "larry", "text": "那个时候我确实在附近……但我没进去！" }
+                    ]
+                }
+            ],
+            "next": "test_end"
+        },
+
+        "test_end": {
+            "type": "set_flag",
+            "key": "test_complete",
+            "value": true,
+            "next": "ending"
+        },
+
+        "ending": {
+            "type": "dialogue",
+            "lines": [
+                { "character": "judge_aa", "text": "测试项目全部完成。" },
+                { "text": "所有功能测试完毕。感谢测试！" }
+            ],
+            "next": null
+        }
+    }
+}

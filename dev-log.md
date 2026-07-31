@@ -1,89 +1,70 @@
 # GyakutenMaker 开发日志
 
-## 2026-05-22 首次开发
+> 说明：本项目早期曾尝试用 TypeScript + React 自研引擎（`packages/core` / `packages/player`），
+> 后已废弃并转向 **Ren'Py 运行时 + 数据驱动解释器** 方案（详见 `project-plan.md`）。
+> 下方"历史归档"记录了废弃方案，仅作背景参考，相关代码已不在仓库中。
 
-### 项目初始化
+---
 
-- 创建 Monorepo 结构（pnpm workspaces）
-- `packages/core` — 引擎核心（TypeScript）
-- `packages/player` — 播放器 UI（React + Vite + TypeScript）
+## 2026-07-31 阶段1 数据驱动地基完成
 
-### 核心引擎 (packages/core)
+### 新增文件
 
-**数据格式定义 (`types.ts`)：**
-- `Scene` — 场景顶级结构（版本、元信息、角色、证物、节点）
-- `DialogueNode` — 对话节点（支持富文本片段 TextSegment）
-- `TitleNode` — 标题卡片节点（"证言开始"、"询问开始"）
-- `TestimonyDisplayNode` — 证言展示节点（证人念证言，只读）
-- `TestimonyNode` — 询问节点（可交互，威慑/举证）
-- `InvestigationNode` — 搜证节点（支持 hybrid/investigations/classic 模式）
-- `InvestigationHotspot` — 可调查热点（位置、感应半径、证物奖励）
-- `InvestigationNPC` — NPC（问候对话、聊天话题、出示证物）
-- `ChoiceNode` — 选择分支节点
-- `PsycheLockNode` — 心锁节点（预留）
+- `game/aa/case.json` — 案件流程节点数据（对话/证言/搜证/NPC对话/set_flag），为唯一流程事实来源
+- `renpy/common/00aa_runtime.rpy` — 数据驱动流程解释器：读 `case.json`，用官方 Ren'Py API 驱动所有交互
+  - `aa_run_case(filepath, entry)` label — 入口点，供 `.rpy` call
+  - `_aa_rt.dispatch(node)` — 按节点类型分派
+  - `exec_dialogue / exec_testimony / exec_investigation / exec_talk / exec_get_evidence / exec_set_flag / exec_choice / exec_penalty` — 各类型处理器
 
-**引擎 (`engine.ts`)：**
-- 状态机管理（节点跳转、血量、证物）
-- 事件系统（nodeChanged, healthChanged, evidenceAdded 等）
-- 证言系统（威慑、举证、扣血、完成判定）
-- 搜证系统（玩家移动、热点感应、NPC 交互状态机）
-- NPC 多级交互（问候 → 菜单 → 聊天/出示证物 → 返回）
-- 标题卡片自动跳转
-- 证言展示逐条播放
-- 动态证物发现（热点调查时自动添加到证物列表）
+### 改造文件
 
-**加载器 (`loader.ts`)：**
-- 从 JSON 字符串/对象/URL 加载场景
-- 基础校验（版本、入口节点、节点引用）
+- `game/test_case.rpy` — 精简为 3 步：加载 JSON → 注册角色 → `call aa_run_case("aa/case.json")`，流程全部来自 case.json
 
-### 播放器 UI (packages/player)
+### 里程碑 M1 达成条件
 
-**组件：**
-- `GameScreen` — 主场景（全局键盘快捷键、节点类型路由）
-- `DialogueBox` — 对话框（逐字显示、底部快捷键提示）
-- `TitleCard` — 标题卡片（金色大字、缩放动画）
-- `TestimonyDisplay` — 证言展示（"证言中"标签、逐条播放、进度点）
-- `TestimonyPanel` — 询问面板（绿色证言、左右切换、威慑/举证按钮）
-- `EvidencePanel` — 证物选择面板
-- `ChoicePanel` — 选择分支面板
-- `HealthBar` — 血槽
-- `InvestigationScene` — 搜证主场景
-- `PlayerCharacter` — 可操控角色（SVG 占位符）
-- `Hotspot` — 可调查热点（靠近高亮、脉冲动画）
-- `InvestigationDialogue` — 搜证对话
-- `NPCDialogue` — NPC 交互（菜单、聊天话题列表、出示证物选择）
+**"完全不碰 .rpy 代码，仅手改 `case.json` 即可改变游戏流程"** — 已满足。
 
-**快捷键：**
-- `C` — 打开/关闭证物面板
-- `Z` — 威慑（询问环节）
-- `X` — 举证（询问环节）
-- `空格/回车` — 推进对话
-- `ESC/Q` — 返回/关闭
-- `←/→` — 切换证言（询问环节）
-- `WASD/方向键` — 移动角色（搜证环节）
-- `E/空格` — 互动（搜证环节）
+验证方式：直接编辑 `game/aa/case.json` 的节点台词/顺序/hotspot，无需修改任何 `.rpy` 文件。
 
-### 示例场景
+---
 
-**demo-investigation.json — 完整流程演示：**
-1. 搜证环节：案发现场调查
-   - 4 个可调查热点（破碎的花瓶、书桌、窗户、信箱）
-   - 1 个 NPC（糸锯圭介）— 3 个聊天话题 + 3 种证物出示反应
-   - 收集 3 件证物后可前往法庭
-2. 法庭环节：
-   - 大标题"证言开始" → 证人念 4 条证言
-   - 大标题"询问开始" → 询问环节（威慑/举证）
-   - 对第 3 条证言出示"快递员的证词"即可通关
+## 2026-07-31 运行时现状审计（阶段0）
 
-### 待办事项
+- 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。
+- **关键发现**：`00aa_statements.rpy` 中带 `block="script"` 的语句（`begin_testimony`/`press`/`present`/`investigate`/`examine`/`talk`/`topic`）块执行逻辑存在架构性错误——调用了不存在的 `renpy.execute()`，且误把 `next` handler 的 label-name 参数当节点列表遍历。
+- 详见 `runtime-audit.md`。
+- 结论：非块 `execute_*` 函数（`penalty`/`get_evidence`/`set_flag`/…）、`00aa_core.rpy` 数据类、`00aa_screens.rpy` UI、`00aa_text.rpy` 嘟嘟声均可复用；块执行机制需在阶段1 用数据驱动解释器重写替换。
+- 下一步：进入阶段1（`case.json` Schema + `00aa_runtime.rpy` 解释器）。
 
-- [ ] 音效系统（嘟嘟声、异议语音、BGM）
-- [ ] 角色动画（拍桌、指向、崩溃）
-- [ ] 心锁系统
-- [ ] 看穿系统
-- [ ] 可视化编辑器
-- [ ] 场景背景图片
-- [ ] 角色立绘
-- [ ] 存档/读档
-- [ ] 多章节支持
-- [ ] 导出/分享功能
+---
+
+## 历史归档（已废弃的 TS/React 自研引擎方案）
+
+<details>
+<summary>2026-05-22 首次开发（已废弃，仅作背景）</summary>
+
+### 项目初始化（已废弃）
+
+- 曾创建 Monorepo 结构（pnpm workspaces）
+- `packages/core` — 引擎核心（TypeScript）——已废弃
+- `packages/player` — 播放器 UI（React + Vite + TypeScript）——已废弃
+
+### 曾定义的数据格式（types.ts）
+
+- `Scene` / `DialogueNode` / `TitleNode` / `TestimonyDisplayNode` / `TestimonyNode`
+  / `InvestigationNode` / `InvestigationHotspot` / `InvestigationNPC` / `ChoiceNode` / `PsycheLockNode`
+
+### 曾实现的引擎能力（engine.ts）
+
+- 状态机管理、事件系统、证言系统、搜证系统、NPC 多级交互、标题卡片、证言逐条播放、动态证物发现
+
+### 曾实现的播放器 UI（packages/player）
+
+- GameScreen / DialogueBox / TitleCard / TestimonyDisplay / TestimonyPanel
+  / EvidencePanel / ChoicePanel / HealthBar / InvestigationScene / PlayerCharacter
+  / Hotspot / InvestigationDialogue / NPCDialogue
+
+> 上述 TS/React 组件与引擎均已废弃，现由 Ren'Py 运行时承担。其数据模型思路（节点类型划分、
+> 证言/搜证/交互状态机）对阶段1 的 `case.json` Schema 设计仍有参考价值。
+
+</details>

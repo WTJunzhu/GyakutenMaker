@@ -218,6 +218,53 @@
 
 ---
 
+## 阶段1：数据驱动地基 `✅`
+
+> 目标：里程碑 M1 — "完全不碰 .rpy 代码，仅手改 `case.json` 即可改变游戏流程"
+
+### Step A1：case.json Schema 设计 `✅`
+
+**产出文件**：`game/aa/case.json`（测试数据兼参考模板）
+
+节点类型：
+
+| type | 描述 |
+|------|------|
+| `dialogue` | 对话段（可含 show_health_bar、scene 指令） |
+| `get_evidence` | 批量添加证物到 court_record |
+| `set_flag` | 设置 court_record flag |
+| `penalty` | 扣血 |
+| `testimony` | 完整证言+询问（stmts / press_handlers / present_handlers） |
+| `investigation` | 搜证场景（hotspots 含内联 lines + get_evidence） |
+| `talk` | NPC 对话（topics + present_handlers） |
+| `choice` | 玩家选择分支（选项 → 不同 next） |
+
+---
+
+### Step A2：流程解释器 `00aa_runtime.rpy` `✅`
+
+**产出文件**：`renpy/common/00aa_runtime.rpy`
+
+- `init -996 python in _aa_rt` — 所有执行逻辑，**仅使用官方 Ren'Py API**
+  - `renpy.say()` 驱动对话（彻底绕开 `renpy.execute()` 问题）
+  - `renpy.call_screen()` 驱动交互
+  - `renpy.show_screen()` / `renpy.hide_screen()` 管理 UI
+- `label aa_run_case(filepath, entry)` — 跳转入口，参与 Ren'Py 存档/读档
+- `label aa_run_node` — 节点循环（`jump aa_run_node` 递推）
+- `screen aa_choice_menu` — 通用选择分支屏幕
+
+**核心修复**：`testimony` / `investigation` / `talk` 的块执行不再依赖已证实不存在的 `renpy.execute()`，改为从 case.json 数据直接 `renpy.say()` 执行内容。
+
+---
+
+### Step A3：test_case.rpy 数据驱动化 `✅`
+
+**改造文件**：`game/test_case.rpy`
+
+从 187 行硬编码 label/jump 精简为 30 行：加载 JSON → 注册角色 → `call aa_run_case`。
+
+---
+
 ## 第二阶段：演出品质（让体验像逆转裁判）
 
 ### Step 11：角色动画状态机 `⬜`
