@@ -59,6 +59,39 @@
 
 ---
 
+## 2026-08-28 (续) 一键预览 + 证言/搜证可视化表单 → M2 达成
+
+### 一键预览（轻量方案，未装 Rust）
+
+- 不走 Tauri，先在 Vite dev server 挂后端插件 `editor/preview/vitePreviewPlugin.ts`。
+- `POST /api/preview`：校验 → 写 `case.json` 到测试项目 → 清 .rpyc → spawn 启动 Ren'Py。
+- 路径可用 `AA_RENPY_SDK` / `AA_TEST_PROJECT` 环境变量覆盖；`GET /api/preview/config` 诊断。
+- 工具栏「▶ 一键预览」按钮 + 状态提示。端到端验证：写入生效、进程启动、无报错。
+- 设计为可平滑迁移：迁 Tauri 时后端换 Rust command，前端 `src/api/preview.ts` 不变。
+
+### 证言/搜证可视化表单
+
+- `LineListEditor.tsx`：抽出可复用对话行编辑器；`DialogueForm` 改为复用它。
+- `TestimonyForm.tsx`：证言逐句编辑；每句可展开配置「追问(press)」与「举证(present)」。
+  - 举证含：正确证据 id（逗号分隔）、成功台词、扣血、成功后跳转（节点下拉）。
+  - 删除证言时自动平移 1-based handler key，避免错位。
+- `InvestigationForm.tsx`：搜证热点可视化（id/名称/x/y/半径/宽高/获得证据/调查台词）。
+- 接入 `PropertyPanel` 分派；`tsc -b` + 生产构建（208 模块）+ 浏览器实测均通过。
+
+### 里程碑 M2 达成
+
+**「非程序员能在编辑器里做出『一段对话 + 一个搜证点 + 一次举证』并预览」** — 已满足。
+dialogue / testimony / investigation 三大核心节点均有可视化表单，配合一键预览闭环。
+
+### 待办（下一步候选）
+
+- talk / choice 的可视化表单（目前仍是 JSON 编辑器）。
+- 证物/角色/地点的下拉引用（现在 evidence_id / character 仍需手敲）。
+- 实时校验（断裂连线、引用不存在证物、举证未设正确答案）。
+- 真·本地工程文件夹读写（现为浏览器上传/下载）。
+
+---
+
 ## 2026-07-31 运行时现状审计（阶段0）
 
 - 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。
