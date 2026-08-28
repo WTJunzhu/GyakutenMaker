@@ -1,6 +1,8 @@
 import { useEditorStore } from "../store/editorStore";
 import { NODE_META, type NodeType } from "../types/case";
 import { DialogueForm } from "./forms/DialogueForm";
+import { TestimonyForm } from "./forms/TestimonyForm";
+import { InvestigationForm } from "./forms/InvestigationForm";
 import { GenericForm } from "./forms/GenericForm";
 
 const ALL_TYPES = Object.keys(NODE_META) as NodeType[];
@@ -86,6 +88,10 @@ export function PropertyPanel() {
         {/* 类型专属表单 */}
         {node.type === "dialogue" ? (
           <DialogueForm nodeId={selectedNodeId} node={node} />
+        ) : node.type === "testimony" ? (
+          <TestimonyForm nodeId={selectedNodeId} node={node} />
+        ) : node.type === "investigation" ? (
+          <InvestigationForm nodeId={selectedNodeId} node={node} />
         ) : (
           <GenericForm nodeId={selectedNodeId} node={node} />
         )}
