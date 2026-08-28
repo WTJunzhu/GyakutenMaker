@@ -62,6 +62,28 @@ export interface ChoiceOption {
   next?: string;
 }
 
+/** 节点创作进度状态 */
+export type NodeStatus = "draft" | "wip" | "done";
+
+/**
+ * 节点元数据（编辑器专用，运行时忽略，以 _meta 命名空间存于 case.json）。
+ * 承载"组织与检索"所需信息。详见 node-system-design.md 第 4.1 节。
+ */
+export interface NodeMeta {
+  /** 人类可读标题：列表/搜索/画布优先显示，比 id 友好 */
+  title?: string;
+  /** 作者备注（只给作者看，不入游戏） */
+  note?: string;
+  /** 自由标签，可用于筛选（如「关键证据」「伏笔」） */
+  tags?: string[];
+  /** 所属分组/环节 id */
+  group?: string;
+  /** 剧情时序权重（用于时间线视图/时间筛选） */
+  story_time?: number;
+  /** 创作进度状态 */
+  status?: NodeStatus;
+}
+
 /**
  * 一个流程节点。字段随 type 不同而不同（松散并集）。
  * 运行时按 type 分派，多余字段忽略；编辑器按 type 展示对应表单。
@@ -72,6 +94,9 @@ export interface CaseNode {
 
   // 编辑器专用：画布坐标（运行时忽略）。存于 case.json 的 _editor 命名空间。
   _editor?: { x: number; y: number };
+
+  // 编辑器专用：节点元数据（组织/检索用，运行时忽略）。详见 node-system-design.md。
+  _meta?: NodeMeta;
 
   // dialogue
   scene?: string;

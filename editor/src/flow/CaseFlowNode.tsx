@@ -1,11 +1,20 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { NODE_META, type NodeType } from "../types/case";
+import { NODE_META, type NodeType, type NodeStatus } from "../types/case";
 
-/** 自定义节点：顶部色条 + 类型标签 + 节点 id + 摘要 */
+const STATUS_META: Record<NodeStatus, { label: string; color: string }> = {
+  draft: { label: "草稿", color: "#7f8c8d" },
+  wip: { label: "进行中", color: "#e67e22" },
+  done: { label: "完成", color: "#2ecc40" },
+};
+
+/** 自定义节点：顶部色条 + 类型标签 + 节点标题 + id 副标题 + 摘要 */
 export function CaseFlowNode({ data, selected }: NodeProps) {
   const nodeType = data.nodeType as NodeType;
   const meta = NODE_META[nodeType];
   const isEntry = data.isEntry as boolean;
+  const hasTitle = data.hasTitle as boolean;
+  const nodeId = data.nodeId as string;
+  const status = data.status as NodeStatus | undefined;
 
   return (
     <div
@@ -33,22 +42,40 @@ export function CaseFlowNode({ data, selected }: NodeProps) {
         }}
       >
         <span>{meta.label}</span>
-        {isEntry && (
-          <span
-            style={{
-              fontSize: 10,
-              background: "#ffcc00",
-              color: "#000",
-              borderRadius: 3,
-              padding: "0 4px",
-            }}
-          >
-            入口
-          </span>
-        )}
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {status && (
+            <span
+              style={{
+                fontSize: 10,
+                background: STATUS_META[status].color,
+                color: "#fff",
+                borderRadius: 3,
+                padding: "0 4px",
+              }}
+            >
+              {STATUS_META[status].label}
+            </span>
+          )}
+          {isEntry && (
+            <span
+              style={{
+                fontSize: 10,
+                background: "#ffcc00",
+                color: "#000",
+                borderRadius: 3,
+                padding: "0 4px",
+              }}
+            >
+              入口
+            </span>
+          )}
+        </div>
       </div>
       <div style={{ padding: "6px 8px" }}>
         <div style={{ fontWeight: 600, marginBottom: 2 }}>{data.label as string}</div>
+        {hasTitle && (
+          <div style={{ color: "#666", fontSize: 10, marginBottom: 2 }}>{nodeId}</div>
+        )}
         <div style={{ color: "#999", fontSize: 11, whiteSpace: "pre-wrap" }}>
           {data.summary as string}
         </div>

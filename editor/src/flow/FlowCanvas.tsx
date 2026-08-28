@@ -35,7 +35,10 @@ function CanvasInner() {
       position: node._editor ?? { x: 100, y: 100 },
       selected: id === selectedNodeId,
       data: {
-        label: id,
+        label: node._meta?.title || id,
+        nodeId: id,
+        hasTitle: !!node._meta?.title,
+        status: node._meta?.status,
         nodeType: node.type,
         summary: nodeSummary(node),
         isEntry: id === caseData.entry,

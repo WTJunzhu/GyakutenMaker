@@ -34,6 +34,59 @@ export function PropertyPanel() {
           {NODE_META[node.type].label} 节点
         </h3>
 
+        {/* 节点标题（_meta.title）—— 列表/画布/搜索优先显示 */}
+        <Field label="节点标题（便于识别，不入游戏）">
+          <input
+            value={node._meta?.title ?? ""}
+            placeholder="如：捡到小雕像 / 证人第一次证言"
+            onChange={(e) =>
+              updateNode(selectedNodeId, {
+                _meta: { ...node._meta, title: e.target.value || undefined },
+              })
+            }
+            style={inputStyle}
+          />
+        </Field>
+
+        {/* 作者备注 + 创作状态（_meta） */}
+        <Field label="作者备注（可选，不入游戏）">
+          <textarea
+            value={node._meta?.note ?? ""}
+            placeholder="给自己看的提醒，如：这里的证据第5句证言要用"
+            rows={2}
+            onChange={(e) =>
+              updateNode(selectedNodeId, {
+                _meta: { ...node._meta, note: e.target.value || undefined },
+              })
+            }
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+        </Field>
+
+        <Field label="创作状态">
+          <select
+            value={node._meta?.status ?? ""}
+            onChange={(e) =>
+              updateNode(selectedNodeId, {
+                _meta: {
+                  ...node._meta,
+                  status: (e.target.value || undefined) as
+                    | "draft"
+                    | "wip"
+                    | "done"
+                    | undefined,
+                },
+              })
+            }
+            style={inputStyle}
+          >
+            <option value="">（未标记）</option>
+            <option value="draft">草稿 draft</option>
+            <option value="wip">进行中 wip</option>
+            <option value="done">已完成 done</option>
+          </select>
+        </Field>
+
         {/* 节点 ID */}
         <Field label="节点 ID">
           <input
