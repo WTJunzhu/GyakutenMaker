@@ -28,6 +28,37 @@
 
 ---
 
+## 2026-08-28 闭环验证 + 调试浮层 + 阶段2 编辑器 MVP
+
+### 闭环验证（M1 确认）
+
+- 在本地 renpy-8.5.3-sdk 中实跑测试项目 `GyakutenMaker-AATest`，数据驱动流程完整跑通，无报错。
+- 修复的兼容问题：`renpy.exports.X` API 前缀、`default` 重复定义、`_play_ding` 命名空间、gui.rpy 引号。
+
+### 运行时调试浮层（commit b9c6b42）
+
+- `renpy/common/00aa_runtime.rpy` 新增 `screen aa_debug_overlay`（F9 开关，`config.overlay_screens` 注册）。
+- 显示：当前节点 id/type、血量、交互反馈（举证正误✔✘、追问、搜证、话题、选择、取证）。
+- 目的：无美术素材时也能确认「点得对不对」，解决语义验证盲区。
+- 注意：Ren'Py 文本 `[...]` 是插值语法，字面方括号需转义或避免。
+
+### 阶段2 编辑器 MVP 脚手架（commit 6fcc7bd）
+
+- 新目录 `editor/`：Vite + React18 + TypeScript + React Flow(`@xyflow/react`) + Zustand。
+- 三大区：
+  - 工具栏 `panels/Toolbar.tsx` — 新建/导入/导出 case.json，添加 8 种节点。
+  - 流程画布 `flow/FlowCanvas.tsx` — 自定义节点卡片、拖拽连线（写入 `next`）、缩放、小地图。
+  - 属性面板 `panels/PropertyPanel.tsx` — 编辑节点 ID/类型/next；dialogue 有可视化表单，其余暂用 JSON 表单。
+- 数据契约 `src/types/case.ts` 严格对齐运行时；`_editor` 命名空间存画布坐标（运行时忽略）。
+- 验证：`tsc -b` 通过，dev server(5175) 正常，浏览器实测界面渲染与新建案件功能无报错。
+
+### 待办
+
+- 一键预览（调起 Ren'Py 跑当前 case.json）需 Tauri 外壳 —— 本机暂无 Rust，待安装。
+- testimony / investigation / talk / choice 的可视化专属表单。
+
+---
+
 ## 2026-07-31 运行时现状审计（阶段0）
 
 - 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。
