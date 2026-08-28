@@ -113,6 +113,29 @@ dialogue / testimony / investigation 三大核心节点均有可视化表单，�
 
 ---
 
+## 2026-08-28 (四) 阶段3 起步：资源集中定义 + 引用下拉
+
+- **资源数据模型**：`types/case.ts` 新增 `EvidenceDef` / `CharacterDef` / `BackgroundDef` /
+  `CaseAssets`，`CaseData.assets` 集中存放证物/角色/背景，schema 对齐运行时
+  `game/aa/{evidence,characters,locations}.json`。
+- **store 资源 CRUD**：`upsert/delete` × 证物/角色/背景，改 id 时删旧 key 写新 key、冲突返回失败。
+  `loadCase` 兼容旧 case.json——无 `assets` 时 `backfillAssets` 扫描全节点（lines/witness/
+  hotspots/press/present handlers 等）反向收集已用 id 生成占位定义，让下拉立刻可用。
+- **资源管理面板 `AssetManager`**（工具栏「资源管理」按钮弹出模态）：三 Tab（证物/角色/背景），
+  可视化增删改；角色带名字颜色取色器、站位下拉、打字音字段；输入框失焦提交。
+- **引用下拉 `AssetSelect`**：从 `case.assets` 读选项，显示「名称 (id)」，值存 id。
+  - 对话行角色（`LineListEditor`，全局生效）、`get_evidence` 证物（新 `GetEvidenceForm`）、
+    证言 witness 与举证 correct_evidence、搜证热点 get_evidence、对话/搜证 scene 背景，
+    全部由手敲 id 改为下拉选择。
+  - 背景 `scene` 用 `asScene` 模式按 `"bg <id>"` 存取，对齐运行时字段格式。
+  - 安全网：引用了资源库里不存在的 id 时下拉显示「⚠ …未在资源库，请去资源管理添加」。
+- 意义：杜绝 id 拼写错误，作者从"记忆 + 手敲 id"变为"下拉里挑"，向剪映式所见即所选靠拢一步。
+- `tsc -b` + 生产构建（361KB）均通过；浏览器实测资源增删与下拉联动正常、控制台无报错。
+- **待续**：资源→运行时桥接（assets 拆写回三个 JSON + 角色 `define` 动态注册）、内置素材库、
+  改 id 时同步更新引用节点（引用追踪 + 一致性校验）。
+
+---
+
 ## 2026-07-31 运行时现状审计（阶段0）
 
 - 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。

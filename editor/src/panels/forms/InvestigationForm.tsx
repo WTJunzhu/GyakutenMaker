@@ -3,6 +3,7 @@ import { useEditorStore } from "../../store/editorStore";
 import type { CaseNode, Hotspot } from "../../types/case";
 import { Field, inputStyle } from "../PropertyPanel";
 import { LineListEditor } from "./LineListEditor";
+import { AssetSelect } from "./AssetSelect";
 
 /**
  * investigation 节点可视化表单。
@@ -27,10 +28,13 @@ export function InvestigationForm({ nodeId, node }: { nodeId: string; node: Case
 
   return (
     <div>
-      <Field label="场景 (scene，如 bg apartment)">
-        <input
-          value={node.scene ?? ""}
-          onChange={(e) => updateNode(nodeId, { scene: e.target.value || undefined })}
+      <Field label="场景背景 (scene)">
+        <AssetSelect
+          kind="backgrounds"
+          asScene
+          value={node.scene}
+          emptyLabel="（不切换背景）"
+          onChange={(v) => updateNode(nodeId, { scene: v })}
           style={inputStyle}
         />
       </Field>
@@ -122,13 +126,12 @@ export function InvestigationForm({ nodeId, node }: { nodeId: string; node: Case
                   />
                 </div>
 
-                <Row label="调查获得证据 id（可选）">
-                  <input
-                    value={hs.get_evidence ?? ""}
-                    placeholder="如 floor_plan"
-                    onChange={(e) =>
-                      patchHotspot(i, { get_evidence: e.target.value || undefined })
-                    }
+                <Row label="调查获得证据（可选）">
+                  <AssetSelect
+                    kind="evidence"
+                    value={hs.get_evidence}
+                    emptyLabel="（不获得证据）"
+                    onChange={(v) => patchHotspot(i, { get_evidence: v })}
                     style={inputStyle}
                   />
                 </Row>

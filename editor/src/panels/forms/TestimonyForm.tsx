@@ -8,6 +8,7 @@ import type {
 } from "../../types/case";
 import { Field, inputStyle } from "../PropertyPanel";
 import { LineListEditor } from "./LineListEditor";
+import { AssetSelect } from "./AssetSelect";
 
 /**
  * testimony 节点可视化表单 —— 逆转裁判核心玩法。
@@ -66,10 +67,12 @@ export function TestimonyForm({ nodeId, node }: { nodeId: string; node: CaseNode
           style={inputStyle}
         />
       </Field>
-      <Field label="证人 id（可选）">
-        <input
-          value={node.witness ?? ""}
-          onChange={(e) => updateNode(nodeId, { witness: e.target.value || undefined })}
+      <Field label="证人（可选）">
+        <AssetSelect
+          kind="characters"
+          value={node.witness}
+          emptyLabel="（无证人）"
+          onChange={(v) => updateNode(nodeId, { witness: v })}
           style={inputStyle}
         />
       </Field>
@@ -245,22 +248,59 @@ function PresentEditor({
       {enabled && (
         <>
           <label style={{ display: "block", fontSize: 12, color: "#999", margin: "6px 0 4px" }}>
-            正确证据 id（多个用逗号分隔）
+            正确证据（出示这些证据可揭穿矛盾）
           </label>
-          <input
-            value={(handler!.correct_evidence ?? []).join(", ")}
-            placeholder="如 thinker, autopsy_report"
-            onChange={(e) =>
-              onChange({
-                ...handler,
-                correct_evidence: e.target.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
+          {(handler!.correct_evidence ?? []).map((evId, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+              <AssetSelect
+                kind="evidence"
+                value={evId}
+                allowEmpty={false}
+                onChange={(v) => {
+                  const list = [...(handler!.correct_evidence ?? [])];
+                  list[i] = v ?? "";
+                  onChange({ ...handler, correct_evidence: list });
+                }}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                onClick={() =>
+                  onChange({
+                    ...handler,
+                    correct_evidence: (handler!.correct_evidence ?? []).filter((_, j) => j !== i),
+                  })
+                }
+                style={{
+                  background: "#2a2a38",
+                  border: "none",
+                  borderRadius: 4,
+                  color: "#ccc",
+                  padding: "0 10px",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              onChange({ ...handler, correct_evidence: [...(handler!.correct_evidence ?? []), ""] })
             }
-            style={inputStyle}
-          />
+            style={{
+              background: "#2a2a38",
+              border: "1px dashed #555",
+              borderRadius: 4,
+              color: "#ccc",
+              padding: "4px 10px",
+              cursor: "pointer",
+              fontSize: 12,
+              marginBottom: 4,
+            }}
+          >
+            + 添加正确证据
+          </button>
 
           <label style={{ display: "block", fontSize: 12, color: "#999", margin: "8px 0 4px" }}>
             举证成功台词

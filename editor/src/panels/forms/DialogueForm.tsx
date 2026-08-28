@@ -2,6 +2,7 @@ import { useEditorStore } from "../../store/editorStore";
 import type { CaseNode } from "../../types/case";
 import { Field, inputStyle } from "../PropertyPanel";
 import { LineListEditor } from "./LineListEditor";
+import { AssetSelect } from "./AssetSelect";
 
 /** dialogue 节点专属表单：可视化编辑对话行列表 */
 export function DialogueForm({ nodeId, node }: { nodeId: string; node: CaseNode }) {
@@ -10,10 +11,13 @@ export function DialogueForm({ nodeId, node }: { nodeId: string; node: CaseNode 
 
   return (
     <div>
-      <Field label="场景 (scene，可选，如 bg courtroom)">
-        <input
-          value={node.scene ?? ""}
-          onChange={(e) => updateNode(nodeId, { scene: e.target.value || undefined })}
+      <Field label="场景背景 (scene)">
+        <AssetSelect
+          kind="backgrounds"
+          asScene
+          value={node.scene}
+          emptyLabel="（不切换背景）"
+          onChange={(v) => updateNode(nodeId, { scene: v })}
           style={inputStyle}
         />
       </Field>

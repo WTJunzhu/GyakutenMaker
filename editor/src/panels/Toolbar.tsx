@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { NODE_META, type CaseData, type NodeType } from "../types/case";
 import { requestPreview } from "../api/preview";
+import { AssetManager } from "./AssetManager";
 
 const ADD_TYPES = Object.keys(NODE_META) as NodeType[];
 
@@ -14,6 +15,7 @@ export function Toolbar() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewing, setPreviewing] = useState(false);
   const [previewMsg, setPreviewMsg] = useState<string | null>(null);
+  const [showAssets, setShowAssets] = useState(false);
 
   const handlePreview = async () => {
     if (!caseData) return;
@@ -77,6 +79,13 @@ export function Toolbar() {
         导出 case.json
       </button>
       <button
+        style={{ ...btn, background: caseData ? "#8e44ad" : "#2a2a38", color: "#fff" }}
+        onClick={() => setShowAssets(true)}
+        disabled={!caseData}
+      >
+        资源管理
+      </button>
+      <button
         style={{ ...btn, background: caseData ? "#2ecc40" : "#2a2a38", color: "#fff" }}
         onClick={handlePreview}
         disabled={!caseData || previewing}
@@ -129,6 +138,8 @@ export function Toolbar() {
           {caseData.title} {dirty ? "• 未保存" : "• 已同步"}
         </span>
       )}
+
+      {showAssets && <AssetManager onClose={() => setShowAssets(false)} />}
     </div>
   );
 }

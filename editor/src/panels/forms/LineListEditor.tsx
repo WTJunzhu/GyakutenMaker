@@ -1,4 +1,5 @@
 import type { DialogueLine } from "../../types/case";
+import { AssetSelect } from "./AssetSelect";
 
 const box: React.CSSProperties = {
   border: "1px solid #2a2a38",
@@ -52,12 +53,13 @@ export function LineListEditor({
 
       {lines.map((line, i) => (
         <div key={i} style={box}>
-          <input
-            placeholder="角色 id（留空=旁白）"
-            value={line.character ?? ""}
-            onChange={(e) => {
+          <AssetSelect
+            kind="characters"
+            value={line.character}
+            emptyLabel="旁白（无角色）"
+            onChange={(v) => {
               const next = [...lines];
-              next[i] = { ...line, character: e.target.value || undefined };
+              next[i] = { ...line, character: v };
               onChange(next);
             }}
             style={{ ...input, marginBottom: 6 }}

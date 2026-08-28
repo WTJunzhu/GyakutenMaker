@@ -136,6 +136,45 @@ export interface CaseNode {
   options?: ChoiceOption[];
 }
 
+/** ─── 资源定义（集中管理，节点通过 id 引用）───────────────────
+ * schema 对齐运行时 game/aa/{evidence,characters,locations}.json。
+ * 编辑器把三类资源统一收进 case.assets；导出时可拆分回三个文件供运行时加载。
+ */
+
+/** 证物定义（对齐 evidence.json 的 evidence[] 项） */
+export interface EvidenceDef {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string; // 图片路径，阶段3 素材库接入前可为空
+  tags?: string[];
+  examine_images?: string[];
+}
+
+/** 角色定义（对齐 characters.json 的 characters[] 项） */
+export interface CharacterDef {
+  id: string;
+  name: string;
+  color?: string; // 名字颜色，如 #c8ffc8
+  beep_sfx?: string; // 打字音，如 preset:defense
+  position?: "left" | "right" | "center";
+  sprites?: Record<string, string | string[]>; // 表情/动画帧
+}
+
+/** 背景/地点定义（对齐 locations.json 的 locations[] 项） */
+export interface BackgroundDef {
+  id: string;
+  name: string;
+  image?: string; // 背景图路径
+}
+
+/** 案件资源集合（编辑器专用聚合，运行时按拆分文件加载） */
+export interface CaseAssets {
+  evidence: Record<string, EvidenceDef>;
+  characters: Record<string, CharacterDef>;
+  backgrounds: Record<string, BackgroundDef>;
+}
+
 /** 整个案件文件 */
 export interface CaseData {
   version: string;
@@ -144,6 +183,8 @@ export interface CaseData {
   author?: string;
   entry: string;
   nodes: Record<string, CaseNode>;
+  /** 集中定义的资源（证物/角色/背景），供节点引用 */
+  assets?: CaseAssets;
 }
 
 /** 节点类型 → 中文显示名 & 主题色 */
