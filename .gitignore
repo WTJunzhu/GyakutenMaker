@@ -211,3 +211,6 @@ renpy/tfd.pyi
 renpy/uguu/gl.pyi
 renpy/uguu/uguu.pyi
 editor/node_modules/
+
+# TS build cache
+editor/*.tsbuildinfo
