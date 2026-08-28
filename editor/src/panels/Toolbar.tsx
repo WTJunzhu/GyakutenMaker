@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { NODE_META, type CaseData, type NodeType } from "../types/case";
+import { requestPreview } from "../api/preview";
 
 const ADD_TYPES = Object.keys(NODE_META) as NodeType[];
 
@@ -11,6 +12,23 @@ export function Toolbar() {
   const loadCase = useEditorStore((s) => s.loadCase);
   const addNode = useEditorStore((s) => s.addNode);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewMsg, setPreviewMsg] = useState<string | null>(null);
+
+  const handlePreview = async () => {
+    if (!caseData) return;
+    setPreviewing(true);
+    setPreviewMsg(null);
+    const result = await requestPreview(caseData);
+    setPreviewing(false);
+    if (result.ok) {
+      setPreviewMsg("✓ 已启动 Ren'Py 预览，请查看游戏窗口");
+    } else {
+      setPreviewMsg("✗ " + (result.error ?? "预览失败"));
+    }
+    setTimeout(() => setPreviewMsg(null), 6000);
+  };
+
 
   const handleImport = (file: File) => {
     const reader = new FileReader();
@@ -58,6 +76,13 @@ export function Toolbar() {
       <button style={btn} onClick={handleExport} disabled={!caseData}>
         导出 case.json
       </button>
+      <button
+        style={{ ...btn, background: caseData ? "#2ecc40" : "#2a2a38", color: "#fff" }}
+        onClick={handlePreview}
+        disabled={!caseData || previewing}
+      >
+        {previewing ? "启动中…" : "▶ 一键预览"}
+      </button>
 
       <input
         ref={fileRef}
@@ -88,6 +113,17 @@ export function Toolbar() {
       )}
 
       <div style={{ flex: 1 }} />
+      {previewMsg && (
+        <span
+          style={{
+            fontSize: 12,
+            color: previewMsg.startsWith("✓") ? "#2ecc40" : "#e74c3c",
+            marginRight: 12,
+          }}
+        >
+          {previewMsg}
+        </span>
+      )}
       {caseData && (
         <span style={{ color: dirty ? "#f39c12" : "#2ecc40", fontSize: 12 }}>
           {caseData.title} {dirty ? "• 未保存" : "• 已同步"}
