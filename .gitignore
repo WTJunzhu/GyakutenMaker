@@ -210,3 +210,4 @@ renpy/text/texwrap.pyi
 renpy/tfd.pyi
 renpy/uguu/gl.pyi
 renpy/uguu/uguu.pyi
+editor/node_modules/

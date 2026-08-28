@@ -1,0 +1,2 @@
+cd editor
+pnpm dev
