@@ -19,6 +19,21 @@ init -996 python in _aa_rt:
     import renpy.revertable
     import store
 
+    # ─── Debug overlay helpers ─────────────────────────────────────
+    #
+    # These write to store-level variables read by screen aa_debug_overlay.
+    # Purpose: make the data-driven flow *visible* while assets are absent,
+    # so a creator can confirm "am I clicking the right thing?".
+
+    def _dbg_node(node_id, node):
+        """Record the current node id/type for the debug overlay."""
+        store._aa_dbg_node_id = node_id
+        store._aa_dbg_node_type = (node or {}).get("type", "?")
+
+    def _dbg_feedback(msg):
+        """Show a transient feedback line in the debug overlay."""
+        store._aa_dbg_feedback = msg
+
     # ─── Character store lookup ────────────────────────────────────
 
     def _get_char(char_id):
@@ -149,6 +164,7 @@ init -996 python in _aa_rt:
             ev_data = store._aa._evidence_defs.get(ev_id)
             if ev_data is not None:
                 store.court_record.add_evidence(ev_id, ev_data)
+                _dbg_feedback(u"➕ 获得证据：{}".format(ev_id))
             else:
                 renpy.exports.say(None, "[AA Runtime] Unknown evidence: {}".format(ev_id))
         return node.get("next")
@@ -257,6 +273,7 @@ init -996 python in _aa_rt:
                 correct_ids = handler.get("correct_evidence", []) if handler else []
                 if selected in correct_ids:
                     # Correct evidence presented
+                    _dbg_feedback(u"✔ 举证正确：{} @ 证言#{}".format(selected, idx + 1))
                     on_correct = handler.get("on_correct", {})
                     _say_lines(on_correct.get("lines", []))
 
@@ -270,6 +287,7 @@ init -996 python in _aa_rt:
                     break
                 else:
                     # Wrong evidence
+                    _dbg_feedback(u"✘ 举证错误：{} @ 证言#{}".format(selected, idx + 1))
                     store._aa.on_wrong_present(selected, idx)
                     if store._aa_health <= 0:
                         store._aa.on_game_over()
@@ -285,7 +303,10 @@ init -996 python in _aa_rt:
                 handler = press_handlers.get(stmt_idx_str) or \
                           press_handlers.get("current")
                 if handler:
+                    _dbg_feedback(u"▶ 追问证言#{}（有反应）".format(idx + 1))
                     _say_lines(handler.get("lines", []))
+                else:
+                    _dbg_feedback(u"▷ 追问证言#{}（无额外内容）".format(idx + 1))
                 # After press, continue testimony loop
                 continue
 
@@ -365,6 +386,7 @@ init -996 python in _aa_rt:
 
             store.court_record.mark_examined(hotspot_id)
             store._aa.on_hotspot_examined(hotspot_id)
+            _dbg_feedback(u"🔍 搜查热点：{}".format(hotspot_id))
 
             content = hotspot_content.get(hotspot_id)
             if content:
@@ -450,6 +472,7 @@ init -996 python in _aa_rt:
 
             elif choice in topic_map:
                 store.court_record.mark_topic_talked(npc_id, choice)
+                _dbg_feedback(u"💬 询问话题：{}".format(choice))
                 _say_lines(topic_map[choice])
                 renpy.exports.restart_interaction()
 
@@ -479,6 +502,7 @@ init -996 python in _aa_rt:
                                        options=[o["text"] for o in options])
 
         if choice_idx is not None and 0 <= choice_idx < len(options):
+            _dbg_feedback(u"☐ 选择：{}".format(options[choice_idx].get("text", "")))
             return options[choice_idx].get("next")
         return node.get("next")
 
@@ -505,6 +529,7 @@ label aa_run_node:
 
     python:
         _aa_rt_node = _aa_rt_case["nodes"].get(_aa_rt_entry)
+        _aa_rt._dbg_node(_aa_rt_entry, _aa_rt_node)
 
     if _aa_rt_node is None:
         return
@@ -546,3 +571,55 @@ screen aa_choice_menu(prompt="", options=[]):
                     xalign 0.5
                     text_size 20
                     action Return(i)
+
+
+# ─── Debug Overlay ────────────────────────────────────────────────
+#
+# A lightweight always-on overlay that makes the data-driven flow
+# *visible* while art assets are absent. Shows current node id/type,
+# HP, and the latest press/present feedback. Toggle with F9.
+#
+# Read-only view of runtime state — never mutates flow.
+
+default _aa_dbg_enabled = True
+default _aa_dbg_node_id = "-"
+default _aa_dbg_node_type = "-"
+default _aa_dbg_feedback = ""
+
+screen aa_debug_overlay():
+    zorder 1000
+
+    # F9 toggles visibility
+    key "K_F9" action ToggleVariable("_aa_dbg_enabled")
+
+    if _aa_dbg_enabled:
+        frame:
+            xpos 10
+            ypos 40
+            xpadding 12
+            ypadding 10
+            background "#000000cc"
+
+            vbox:
+                spacing 4
+
+                text "AA DEBUG  (F9 隐藏)":
+                    size 14
+                    color "#ffcc00"
+
+                text "节点: [_aa_dbg_node_id]  ([_aa_dbg_node_type])":
+                    size 15
+                    color "#ffffff"
+
+                text "血量: [_aa_health] / [_aa_max_health]":
+                    size 15
+                    color ("#2ecc40" if _aa_health > 2 else "#ff4136")
+
+                if _aa_dbg_feedback:
+                    text "反馈: [_aa_dbg_feedback]":
+                        size 15
+                        color "#00d0ff"
+
+# Ensure the overlay shows for every game screen automatically.
+init python:
+    config.overlay_screens.append("aa_debug_overlay")
