@@ -64,6 +64,33 @@ init -996 python in _aa_rt:
 
     # ─── Dialogue helpers ──────────────────────────────────────────
 
+    def _show_speaker(char_id):
+        """
+        显示说话者立绘（真实素材优先，否则占位块）。
+
+        站位取角色定义的 position；同一 position 用同一 tag，因此切换说话者时
+        会自动替换该位置的立绘，而不是不断堆叠。
+        """
+        if not char_id:
+            return
+        try:
+            prof = store.court_record.profiles.get(char_id)
+            pos = (prof.position if prof is not None else None) or "center"
+            xalign = {"left": 0.12, "right": 0.88}.get(pos, 0.5)
+            disp = store._aa.resolve_sprite(char_id)
+            if disp is None:
+                return
+            renpy.exports.show(
+                "aa_sprite_" + str(pos),
+                what=disp,
+                tag="aa_sprite_" + str(pos),
+                at_list=[renpy.store.Transform(xalign=xalign, yalign=1.0)],
+                layer="master",
+            )
+        except Exception:
+            # 立绘只是演出增强，失败不应打断对话
+            pass
+
     def _say_line(line):
         """
         Speak one dialogue line dict:
@@ -75,6 +102,7 @@ init -996 python in _aa_rt:
         text = line.get("text", "")
 
         if char_id:
+            _show_speaker(char_id)
             char = _get_char(char_id)
             if char is not None:
                 renpy.exports.say(char, text)
@@ -93,34 +121,9 @@ init -996 python in _aa_rt:
     # ─── Scene helpers ─────────────────────────────────────────────
 
     def _resolve_bg_displayable(bg_id):
-        """
-        Resolve a background id to a Ren'Py displayable.
-        - If assets.backgrounds[bg_id] has an image path that exists → use it.
-        - Otherwise fall back to a labeled solid color placeholder so scene
-          changes stay visible during asset-less previews.
-        """
-        bg_def = store._aa._background_defs.get(bg_id)
-        image_path = None
-        if bg_def:
-            image_path = bg_def.get("image") or bg_def.get("background")
-        if image_path:
-            try:
-                if renpy.exports.loadable(image_path):
-                    return image_path
-            except Exception:
-                pass
-        # Placeholder: deterministic color + name label overlay.
-        name = bg_def.get("name", bg_id) if bg_def else bg_id
-        colors = ["#2c3e50", "#34495e", "#3b3b58", "#4a3b52", "#3b524a", "#523b3b"]
-        color = colors[abs(hash(bg_id)) % len(colors)] if bg_id else "#222233"
-        try:
-            return renpy.store.Composite(
-                (1920, 1080),
-                (0, 0), renpy.store.Solid(color),
-                (60, 980), renpy.store.Text(u"【背景】" + str(name), size=40, color="#ffffffcc"),
-            )
-        except Exception:
-            return renpy.store.Solid(color)
+        """背景 id → displayable。实现统一在 _aa.resolve_background（占位逻辑与
+        screens 共用），此处仅作转发。"""
+        return store._aa.resolve_background(bg_id)
 
     def _apply_scene(node):
         """Apply scene/show/bgm directives from a node dict."""

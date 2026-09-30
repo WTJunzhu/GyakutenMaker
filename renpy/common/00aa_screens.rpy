@@ -161,11 +161,17 @@ screen aa_evidence_panel():
                             background "#333333"
                             hover_background "#555555"
 
-                            vbox:
-                                xfill True
-                                spacing 4
-                                text ev.name size 16 color "#ffffff"
-                                text ev.get_description()[:40] size 12 color "#aaaaaa"
+                            hbox:
+                                spacing 8
+                                # 图标：有真实素材用素材，否则用带标签的占位块
+                                add aa_resolve_evidence_icon(ev.id, (72, 72)):
+                                    yalign 0.5
+                                vbox:
+                                    xfill True
+                                    yalign 0.5
+                                    spacing 4
+                                    text ev.name size 16 color "#ffffff"
+                                    text ev.get_description()[:40] size 12 color "#aaaaaa"
 
                     # Fill empty grid slots
                     for i in range(max(0, 12 - len(court_record.evidence))):

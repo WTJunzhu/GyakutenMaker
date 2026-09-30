@@ -328,6 +328,95 @@ init -998 python in _aa:
         def is_evidence_presented(self, npc_id, evidence_id):
             return self.npc_evidence_presented.get("{}:{}".format(npc_id, evidence_id), False)
 
+    # ─── Placeholder Assets ──────────────────────────────────────
+    #
+    # 素材未就绪时的占位显示。让"零素材"也能跑出可玩、可辨认的成品：
+    # 背景/立绘/证物图标都退化为「配色块 + 名称文字」，而不是一片空白。
+    # 一旦定义里填了真实图片路径且文件存在，就自动改用真实素材。
+
+    # 同一 id 恒定映射到同一配色，便于作者在预览中凭颜色区分对象。
+    _PLACEHOLDER_PALETTE = [
+        ("#2c3e50", "#8fb8d8"), ("#3b3b58", "#a9a9e0"), ("#4a3b52", "#d8a9d0"),
+        ("#3b524a", "#9ed8bd"), ("#523b3b", "#e0a9a9"), ("#4a4630", "#ddd08f"),
+    ]
+
+    def _placeholder_colors(key):
+        idx = abs(hash(key or "")) % len(_PLACEHOLDER_PALETTE)
+        return _PLACEHOLDER_PALETTE[idx]
+
+    def _image_or_none(path):
+        """Return path if it points to a loadable asset, else None."""
+        if not path:
+            return None
+        try:
+            if renpy.exports.loadable(path):
+                return path
+        except Exception:
+            pass
+        return None
+
+    def make_placeholder(kind, key, name, size):
+        """
+        Build a labeled placeholder displayable.
+
+        kind — "背景" / "立绘" / "证物"，显示在标签里，便于一眼看出缺哪类素材
+        key  — 用于选配色的稳定标识（通常是资源 id）
+        name — 展示名称
+        size — (w, h)
+        """
+        bg, fg = _placeholder_colors(key)
+        w, h = size
+        label = u"【{}】{}".format(kind, name or key or "?")
+        # 字号随尺寸缩放，避免小图标上文字溢出
+        text_size = max(12, min(40, int(min(w, h) / 6)))
+        # 注意：在 `init python in _aa` 命名空间里裸 Composite/Solid/Text 不可见，
+        # 必须走 store.* 全限定名。
+        try:
+            return store.Composite(
+                (w, h),
+                (0, 0), store.Solid(bg),
+                (int(w * 0.06), int(h * 0.82)),
+                store.Text(label, size=text_size, color=fg),
+            )
+        except Exception:
+            # Composite 在极端尺寸下可能失败 —— 至少保证有色块
+            try:
+                return store.Solid(bg)
+            except Exception:
+                return None
+
+    def resolve_background(bg_id):
+        """背景 id → displayable（真实图片优先，否则占位）"""
+        d = _background_defs.get(bg_id) or {}
+        real = _image_or_none(d.get("image") or d.get("background"))
+        if real:
+            return real
+        return make_placeholder(u"背景", bg_id, d.get("name", bg_id), (1920, 1080))
+
+    def resolve_sprite(char_id, state="normal"):
+        """角色立绘 → displayable（真实图片优先，否则占位）"""
+        prof = store.court_record.profiles.get(char_id) if store.court_record else None
+        if prof is not None:
+            frames = prof.get_sprite(state) or prof.get_sprite("normal")
+            for f in (frames or []):
+                real = _image_or_none(f)
+                if real:
+                    return real
+        d = _profile_defs.get(char_id) or {}
+        name = (prof.name if prof is not None else None) or d.get("name", char_id)
+        return make_placeholder(u"立绘", char_id, name, (500, 800))
+
+    def resolve_evidence_icon(ev_id, size=(96, 96)):
+        """证物图标 → displayable（真实图片优先，否则占位）"""
+        ev = store.court_record.evidence.get(ev_id) if store.court_record else None
+        if ev is not None:
+            real = _image_or_none(ev.get_icon())
+            if real:
+                return real
+        d = _evidence_defs.get(ev_id) or {}
+        name = (ev.name if ev is not None else None) or d.get("name", ev_id)
+        return make_placeholder(u"证物", ev_id, name, size)
+
     # ─── JSON Loaders ────────────────────────────────────────────
 
     # In-memory cache of raw evidence/profile/location data from JSON.
@@ -652,6 +741,10 @@ init -996 python:
     aa_load_locations = _aa.load_locations
     aa_load_case = _aa.load_case
     aa_load_assets = _aa.load_assets
+    # 占位素材解析（素材未就绪时返回带标签的色块，供 screens/runtime 共用）
+    aa_resolve_background = _aa.resolve_background
+    aa_resolve_sprite = _aa.resolve_sprite
+    aa_resolve_evidence_icon = _aa.resolve_evidence_icon
     aa_register_animation = _aa.register_animation
     aa_register_beep_preset = _aa.register_beep_preset
     aa_set_default_beep = _aa.set_default_beep
