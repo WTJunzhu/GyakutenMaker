@@ -220,6 +220,58 @@ Ren'Py 启动后停在主菜单，`label start` 不会自动执行，所以纯�
 
 ---
 
+## 2026-09-30 (三) 阶段3 (四)：占位素材 — 零素材也能出成品
+
+M3 判定标准是「零素材玩家可用内置素材库做出完整一小节」。经典立绘/音效涉及
+版权与素材准备，先把**占位**这层做扎实：素材未就绪时不再是一片空白，而是
+「配色块 + 名称标签」，作者能看清"谁在说话、在哪个场景、拿的什么证物"。
+
+### 统一占位生成器
+
+- `_aa.make_placeholder(kind, key, name, size)`：同一 id 恒定映射到同一配色
+  （`hash(id) % palette`），作者可凭颜色区分对象；标签写明【背景】/【立绘】/
+  【证物】+ 名称，一眼看出缺哪类素材。
+- `resolve_background` / `resolve_sprite` / `resolve_evidence_icon`：
+  真实素材优先（`renpy.exports.loadable` 校验路径），否则回退占位。
+  暴露为 store 级 `aa_resolve_*` 别名，供 runtime 与 screens 共用。
+- runtime 原本自己写了一份背景占位逻辑，改为转发到 `resolve_background`，
+  消除重复实现。
+
+### 补齐两处从未实现的消费点
+
+排查时发现 `Profile.get_sprite` / `Evidence.get_icon` **定义了但没有任何调用方** ——
+也就是立绘和证物图标此前根本没被显示过。一并补上：
+
+- **角色立绘**：`_say_line` 说话时自动 `_show_speaker`，按角色 `position`
+  分配站位 tag（`aa_sprite_left` 等），切换说话者时替换同位置立绘而非堆叠。
+- **证物面板**：法庭记录的每个证物加上图标（此前只有文字）。
+
+### 验证（重点：排除静默失败）
+
+`_show_speaker` 内部有 `try/except`（立绘只是演出增强，不该打断对话），
+但这意味着它失败时会静默 —— 所以不能只看"没报错"就认为成功。用严格探针取证：
+
+```
+_show_speaker called ok
+showing tags = ['aa_sprite_left', 'black']
+raw show ok, pos=left
+```
+
+`showing tags` 里出现 `aa_sprite_left` 是决定性证据：立绘确实被显示到了
+master 层，且站位正确解析为 phoenix 定义的 `left`。
+
+- 运行期探针确认三类占位图均成功构造（`MultiBox`，即 Composite 的内部类型）
+- 实跑案件无 `errors.txt`；恢复测试项目原状后回归 lint 零错误
+- 临时探针文件已清除
+
+### 踩坑
+
+在 `init python in _aa` 命名空间里，裸 `Composite` / `Solid` / `Text` **不可见**，
+必须写 `store.Composite` 等全限定名（core 里既有代码用的是 `renpy.text.text.Text`，
+同源问题）。这与之前记录的 `isinstance` 陷阱一样，都属于 Ren'Py 命名空间的坑。
+
+---
+
 ## 2026-07-31 运行时现状审计（阶段0）
 
 - 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。
