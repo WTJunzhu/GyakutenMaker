@@ -136,6 +136,47 @@ dialogue / testimony / investigation 三大核心节点均有可视化表单，�
 
 ---
 
+## 2026-09-30 阶段3 (二)：资源→运行时桥接打通
+
+编辑器里定义的资源现在能在 Ren'Py 预览中真实生效，阶段3 Step 1–2 闭环。
+
+- **`_aa.load_assets(assets)`**：直接读 `case.json` 的 `assets` 块注册证物/角色/背景。
+  不拆分成三个 JSON 文件——case.json 自包含，预览链路无需改动。幂等，且与旧的
+  `load_evidence`/`load_profiles` 路径并存（只注册尚不存在的条目）。
+- **角色动态注册**：`setattr(store, id, aa_make_character(id))`，彻底去掉手写
+  `define phoenix = aa_make_character("phoenix")` 的要求。`_get_char` 同时改为惰性创建，
+  store 无该属性时从 profile 表按需构建，双重保障。
+- **`aa_run_case`** 加载 case 后自动调用 `aa_load_assets`。
+- **`_apply_scene`** 支持从 `_background_defs` 解析背景图路径；无图时显示带标签的占位色块，
+  预览时能看出背景切换（素材未就绪阶段的过渡方案）。
+
+### 踩坑记录：Ren'Py 的 `isinstance` 陷阱（本次根因）
+
+初次验证 `load_assets` 注册数量全为 0。探针打出 `type='dict'` 但 `isinstance(assets, dict)`
+为 **False** —— Ren'Py 为支持 rollback，会把 `python:` 块中加载的 JSON 数据包装成
+`RevertableDict` / `RevertableList`，**它们不是内建 `dict`/`list` 的实例**。
+于是 `_values()` 里的 `isinstance` 分支全部判假，返回空列表。
+
+改用鸭子类型（`hasattr(section, "values")` → 否则尝试 `list(section)`）后立即正常。
+排查发现 `Profile.__init__` 解析 `sprites` 多帧动画时有同类问题（`RevertableList` 会被
+错误地再包一层导致嵌套），一并改为判断 `isinstance(path, str)`。
+
+> 教训：在 Ren'Py 的 `python:` 块里处理外部数据，**不要用 `isinstance` 判断 dict/list**。
+
+### 验证方法（含一个自动化陷阱）
+
+Ren'Py 启动后停在主菜单，`label start` 不会自动执行，所以纯后台运行永远跑不到被测代码——
+这是前一轮"证物注册失败"误判的原因之一（另一原因是同步命令被取消，测试项目里跑的还是旧代码）。
+解决：临时加 `label splashscreen`（启动即执行）作为探针入口，用写文件而非
+`renpy.exports.log` 输出（后者需配置 `config.log` 才落盘）。
+
+- 探针结果：`ev=1 prof=2 bg=2`，`ev_ids=['thinker']`、`prof_ids=['judge','phoenix']`、
+  `bg_ids=['apartment','courtroom']`，且 `char_attr_ok=['phoenix','judge']` 证明角色动态注册成功。
+- 回归：恢复测试项目原状（旧式外部 JSON + `define` 角色）后 lint **零错误零警告**，向后兼容。
+- 临时探针文件与调试代码已全部清除。
+
+---
+
 ## 2026-07-31 运行时现状审计（阶段0）
 
 - 对现有 Ren'Py 运行时（`renpy/common/00aa_*.rpy`）做源码级静态审计。
