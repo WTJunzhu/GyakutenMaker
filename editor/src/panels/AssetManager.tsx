@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useEditorStore } from "../store/editorStore";
 import type { EvidenceDef, CharacterDef, BackgroundDef } from "../types/case";
+import { buildRefIndex } from "../analysis/references";
+import type { RefKind } from "../analysis/references";
 
 type Tab = "evidence" | "characters" | "backgrounds";
 
@@ -35,6 +37,15 @@ export function AssetManager({ onClose }: { onClose: () => void }) {
     let i = 1;
     while (existing[`${prefix}_${i}`]) i += 1;
     return `${prefix}_${i}`;
+  };
+
+  /** 删除前检查是否仍被节点引用，避免留下孤儿引用 */
+  const confirmDelete = (kind: RefKind, id: string, del: (id: string) => void) => {
+    const n = (buildRefIndex(caseData).byId[kind][id] ?? []).length;
+    if (n > 0 && !confirm(`「${id}」仍被 ${n} 处节点引用，删除后这些引用会失效。确定删除？`)) {
+      return;
+    }
+    del(id);
   };
 
   return (
@@ -75,7 +86,7 @@ export function AssetManager({ onClose }: { onClose: () => void }) {
               onSave={(def, oldId) => {
                 if (!upsertEvidence(def, oldId)) alert("ID 已存在或为空");
               }}
-              onDelete={deleteEvidence}
+              onDelete={(id) => confirmDelete("evidence", id, deleteEvidence)}
               onAdd={() =>
                 upsertEvidence({ id: newId("evidence", assets.evidence), name: "新证物" })
               }
@@ -87,7 +98,7 @@ export function AssetManager({ onClose }: { onClose: () => void }) {
               onSave={(def, oldId) => {
                 if (!upsertCharacter(def, oldId)) alert("ID 已存在或为空");
               }}
-              onDelete={deleteCharacter}
+              onDelete={(id) => confirmDelete("character", id, deleteCharacter)}
               onAdd={() =>
                 upsertCharacter({ id: newId("char", assets.characters), name: "新角色" })
               }
@@ -99,7 +110,7 @@ export function AssetManager({ onClose }: { onClose: () => void }) {
               onSave={(def, oldId) => {
                 if (!upsertBackground(def, oldId)) alert("ID 已存在或为空");
               }}
-              onDelete={deleteBackground}
+              onDelete={(id) => confirmDelete("background", id, deleteBackground)}
               onAdd={() =>
                 upsertBackground({ id: newId("bg", assets.backgrounds), name: "新背景" })
               }

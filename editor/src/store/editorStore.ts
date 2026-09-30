@@ -9,6 +9,8 @@ import type {
   NodeType,
 } from "../types/case";
 import { NODE_META } from "../types/case";
+import { buildRefIndex, renameRefs } from "../analysis/references";
+import type { RefKind } from "../analysis/references";
 
 /** 从 case.json 提取的「下一步」连线 —— 用于画布连线渲染 */
 export interface FlowEdge {
@@ -63,6 +65,7 @@ const EMPTY_CASE: CaseData = {
 /**
  * 兼容旧 case.json：若无 assets，扫描所有节点收集已引用的证物/角色/背景 id，
  * 生成占位定义，使引用下拉立刻有可选项（作者随后可在资源面板补全 name 等）。
+ * 复用 references 的统一遍历，避免扫描逻辑重复导致遗漏。
  */
 function backfillAssets(data: CaseData): CaseAssets {
   const assets: CaseAssets = {
@@ -70,47 +73,14 @@ function backfillAssets(data: CaseData): CaseAssets {
     characters: { ...(data.assets?.characters ?? {}) },
     backgrounds: { ...(data.assets?.backgrounds ?? {}) },
   };
-
-  const addEv = (id?: string) => {
-    if (id && !assets.evidence[id]) assets.evidence[id] = { id, name: id };
+  const pool: Record<RefKind, Record<string, { id: string; name: string }>> = {
+    evidence: assets.evidence,
+    character: assets.characters,
+    background: assets.backgrounds,
   };
-  const addChar = (id?: string) => {
-    if (id && !assets.characters[id]) assets.characters[id] = { id, name: id };
-  };
-  const addBg = (scene?: string) => {
-    // scene 形如 "bg apartment"，取背景 id 部分
-    if (!scene) return;
-    const parts = scene.split(/\s+/);
-    const id = parts.length === 2 && parts[0] === "bg" ? parts[1] : scene;
-    if (id && !assets.backgrounds[id]) assets.backgrounds[id] = { id, name: id };
-  };
-  const scanLines = (lines?: { character?: string; text: string }[]) => {
-    for (const l of lines ?? []) addChar(l.character);
-  };
-
-  for (const node of Object.values(data.nodes)) {
-    addBg(node.scene);
-    scanLines(node.lines);
-    scanLines(node.intro_lines);
-    addChar(node.witness);
-    addChar(node.npc_id);
-    for (const id of node.evidence_ids ?? []) addEv(id);
-    // 证言 press/present handlers
-    for (const h of Object.values(node.press_handlers ?? {})) scanLines(h.lines);
-    const ph = node.present_handlers;
-    if (ph && !Array.isArray(ph)) {
-      for (const h of Object.values(ph)) {
-        for (const id of h.correct_evidence ?? []) addEv(id);
-        scanLines(h.on_correct?.lines);
-      }
-    }
-    // 搜证热点
-    for (const hs of node.hotspots ?? []) {
-      scanLines(hs.lines);
-      addEv(hs.get_evidence);
-    }
-    // talk 主题
-    for (const t of node.topics ?? []) scanLines(t.lines);
+  for (const site of buildRefIndex(data).sites) {
+    const p = pool[site.kind];
+    if (!p[site.id]) p[site.id] = { id: site.id, name: site.id };
   }
   return assets;
 }
@@ -123,6 +93,67 @@ function genId(existing: Record<string, unknown>, type: NodeType): string {
     id = `${type}_${i}`;
   }
   return id;
+}
+
+/** RefKind → assets 里对应的字段名 */
+const ASSET_FIELD: Record<RefKind, keyof CaseAssets> = {
+  evidence: "evidence",
+  character: "characters",
+  background: "backgrounds",
+};
+
+type StoreGet = () => EditorState;
+type StoreSet = (partial: Partial<EditorState>) => void;
+
+const emptyAssets = (): CaseAssets => ({ evidence: {}, characters: {}, backgrounds: {} });
+
+/**
+ * 新增/更新一个资源定义。改 id 时会**同步改写所有引用该 id 的节点**，
+ * 避免引用变成孤儿（引用追踪的核心价值）。
+ * 返回 false 表示 id 冲突，调用方应提示用户。
+ */
+function upsertAsset(
+  get: StoreGet,
+  set: StoreSet,
+  kind: RefKind,
+  def: { id: string; name: string },
+  oldId?: string,
+): boolean {
+  const data = get().caseData;
+  if (!data || !def.id) return false;
+
+  const assets = data.assets ?? emptyAssets();
+  const field = ASSET_FIELD[kind];
+  const map = { ...(assets[field] as Record<string, unknown>) };
+  const renaming = !!oldId && oldId !== def.id;
+
+  if (renaming && map[def.id]) return false; // 新 id 已被占用
+
+  if (renaming) delete map[oldId!];
+  map[def.id] = def;
+
+  let nodes = data.nodes;
+  if (renaming) {
+    nodes = renameRefs(nodes, kind, oldId!, def.id).nodes;
+  }
+
+  set({
+    caseData: { ...data, nodes, assets: { ...assets, [field]: map } },
+    dirty: true,
+  });
+  return true;
+}
+
+function deleteAsset(get: StoreGet, set: StoreSet, kind: RefKind, id: string): void {
+  const data = get().caseData;
+  if (!data?.assets) return;
+  const field = ASSET_FIELD[kind];
+  const map = { ...(data.assets[field] as Record<string, unknown>) };
+  delete map[id];
+  set({
+    caseData: { ...data, assets: { ...data.assets, [field]: map } },
+    dirty: true,
+  });
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -255,61 +286,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   // ─── 资源管理 ───────────────────────────────────
 
-  upsertEvidence: (def, oldId) => {
-    const data = get().caseData;
-    if (!data || !def.id) return false;
-    const assets = data.assets ?? { evidence: {}, characters: {}, backgrounds: {} };
-    // 改 id 且新 id 已存在 → 冲突
-    if (oldId && oldId !== def.id && assets.evidence[def.id]) return false;
-    const evidence = { ...assets.evidence };
-    if (oldId && oldId !== def.id) delete evidence[oldId];
-    evidence[def.id] = def;
-    set({ caseData: { ...data, assets: { ...assets, evidence } }, dirty: true });
-    return true;
-  },
-  deleteEvidence: (id) => {
-    const data = get().caseData;
-    if (!data?.assets) return;
-    const evidence = { ...data.assets.evidence };
-    delete evidence[id];
-    set({ caseData: { ...data, assets: { ...data.assets, evidence } }, dirty: true });
-  },
+  upsertEvidence: (def, oldId) => upsertAsset(get, set, "evidence", def, oldId),
+  deleteEvidence: (id) => deleteAsset(get, set, "evidence", id),
 
-  upsertCharacter: (def, oldId) => {
-    const data = get().caseData;
-    if (!data || !def.id) return false;
-    const assets = data.assets ?? { evidence: {}, characters: {}, backgrounds: {} };
-    if (oldId && oldId !== def.id && assets.characters[def.id]) return false;
-    const characters = { ...assets.characters };
-    if (oldId && oldId !== def.id) delete characters[oldId];
-    characters[def.id] = def;
-    set({ caseData: { ...data, assets: { ...assets, characters } }, dirty: true });
-    return true;
-  },
-  deleteCharacter: (id) => {
-    const data = get().caseData;
-    if (!data?.assets) return;
-    const characters = { ...data.assets.characters };
-    delete characters[id];
-    set({ caseData: { ...data, assets: { ...data.assets, characters } }, dirty: true });
-  },
+  upsertCharacter: (def, oldId) => upsertAsset(get, set, "character", def, oldId),
+  deleteCharacter: (id) => deleteAsset(get, set, "character", id),
 
-  upsertBackground: (def, oldId) => {
-    const data = get().caseData;
-    if (!data || !def.id) return false;
-    const assets = data.assets ?? { evidence: {}, characters: {}, backgrounds: {} };
-    if (oldId && oldId !== def.id && assets.backgrounds[def.id]) return false;
-    const backgrounds = { ...assets.backgrounds };
-    if (oldId && oldId !== def.id) delete backgrounds[oldId];
-    backgrounds[def.id] = def;
-    set({ caseData: { ...data, assets: { ...assets, backgrounds } }, dirty: true });
-    return true;
-  },
-  deleteBackground: (id) => {
-    const data = get().caseData;
-    if (!data?.assets) return;
-    const backgrounds = { ...data.assets.backgrounds };
-    delete backgrounds[id];
-    set({ caseData: { ...data, assets: { ...data.assets, backgrounds } }, dirty: true });
-  },
+  upsertBackground: (def, oldId) => upsertAsset(get, set, "background", def, oldId),
+  deleteBackground: (id) => deleteAsset(get, set, "background", id),
 }));
