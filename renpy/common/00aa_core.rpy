@@ -138,10 +138,11 @@ init -998 python in _aa:
 
             self.sprites = RD()
             for state, path in data.get("sprites", {}).items():
-                if isinstance(path, list):
-                    self.sprites[state] = RL(path)
-                else:
+                # Duck-typing: RevertableList is not an instance of builtin list.
+                if isinstance(path, str):
                     self.sprites[state] = RL([path])
+                else:
+                    self.sprites[state] = RL(path)
 
             known = {"id", "name", "color", "beep_sfx", "sprites", "position"}
             self.extra = RD()
@@ -334,6 +335,9 @@ init -998 python in _aa:
     _evidence_defs = {}
     _profile_defs = {}
     _location_defs = {}
+    # Background definitions loaded from case.json `assets.backgrounds`.
+    # Read by the runtime's _apply_scene to resolve `scene: "bg <id>"`.
+    _background_defs = {}
 
     def _load_json(filepath):
         full_path = os.path.join(config.gamedir, filepath)
@@ -364,6 +368,84 @@ init -998 python in _aa:
 
     def load_case(filepath):
         return _load_json(filepath)
+
+    def _ensure_evidence(ev_data):
+        """Register one evidence dict into caches + court_record.
+        Fills required fields (name/description/icon) that the editor may omit."""
+        ev_id = ev_data.get("id")
+        if not ev_id:
+            return
+        # Evidence.__init__ hard-requires name/description/icon — backfill safe defaults.
+        safe = dict(ev_data)
+        safe.setdefault("name", ev_id)
+        safe.setdefault("description", "")
+        safe.setdefault("icon", "")
+        _evidence_defs[ev_id] = safe
+        if ev_id not in store.court_record.evidence:
+            store.court_record.evidence[ev_id] = Evidence(safe)
+
+    def _ensure_profile(p_data):
+        """Register one character profile + dynamically create the store-level
+        Ren'Py Character so the runtime's getattr(store, id) lookup succeeds."""
+        p_id = p_data.get("id")
+        if not p_id:
+            return
+        safe = dict(p_data)
+        safe.setdefault("name", p_id)
+        _profile_defs[p_id] = safe
+        if p_id not in store.court_record.profiles:
+            store.court_record.profiles[p_id] = Profile(safe)
+        # Dynamic character registration: only if store has no such attribute yet.
+        # This replaces the manual `define phoenix = aa_make_character("phoenix")`.
+        if getattr(store, p_id, None) is None:
+            try:
+                setattr(store, p_id, store.aa_make_character(p_id))
+            except Exception:
+                pass
+
+    def _ensure_background(bg_data):
+        """Register one background definition (id → image path)."""
+        bg_id = bg_data.get("id")
+        if not bg_id:
+            return
+        _background_defs[bg_id] = bg_data
+
+    def load_assets(assets):
+        """
+        Load the editor's self-contained `assets` block from case.json.
+
+        assets = {
+          "evidence":    { id: {id,name,description,icon,tags,...}, ... },
+          "characters":  { id: {id,name,color,beep_sfx,position,sprites}, ... },
+          "backgrounds": { id: {id,name,image}, ... }
+        }
+
+        Accepts either dict-of-dicts (editor format) or list (legacy) shapes.
+        Idempotent: only registers entries not already present, so it composes
+        with the legacy aa_load_evidence/aa_load_profiles path.
+        """
+        if not assets:
+            return
+
+        # NOTE: duck-typing rather than isinstance(). Ren'Py wraps data loaded
+        # inside `python:` blocks in RevertableDict/RevertableList for rollback
+        # support, and those are NOT instances of the builtin dict/list.
+        def _values(section):
+            if section is None:
+                return []
+            if hasattr(section, "values"):
+                return list(section.values())
+            try:
+                return list(section)
+            except TypeError:
+                return []
+
+        for ev in _values(assets.get("evidence")):
+            _ensure_evidence(ev)
+        for p in _values(assets.get("characters")):
+            _ensure_profile(p)
+        for bg in _values(assets.get("backgrounds")):
+            _ensure_background(bg)
 
     # ─── Scene Displayable (Investigation) ──────────────────────
     #
@@ -569,6 +651,7 @@ init -996 python:
     aa_load_profiles = _aa.load_profiles
     aa_load_locations = _aa.load_locations
     aa_load_case = _aa.load_case
+    aa_load_assets = _aa.load_assets
     aa_register_animation = _aa.register_animation
     aa_register_beep_preset = _aa.register_beep_preset
     aa_set_default_beep = _aa.set_default_beep

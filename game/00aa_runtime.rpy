@@ -37,10 +37,30 @@ init -996 python in _aa_rt:
     # ─── Character store lookup ────────────────────────────────────
 
     def _get_char(char_id):
-        """Return the store-level Ren'Py Character for char_id, or None."""
+        """Return the store-level Ren'Py Character for char_id, or None.
+        Lazily builds the Character from the profile registry (assets-driven)
+        if it hasn't been defined at the store level yet."""
         if char_id is None:
             return None
-        return getattr(store, char_id, None)
+        char = getattr(store, char_id, None)
+        if char is not None:
+            return char
+        # Lazy creation: if this id is a known profile (from assets or legacy
+        # loaders), build a Character on demand and cache it on the store.
+        try:
+            has_profile = (char_id in store._aa._profile_defs) or bool(
+                store.court_record.get_profile(char_id)
+            )
+        except Exception:
+            has_profile = False
+        if has_profile:
+            try:
+                char = store.aa_make_character(char_id)
+                setattr(store, char_id, char)
+                return char
+            except Exception:
+                return None
+        return None
 
     # ─── Dialogue helpers ──────────────────────────────────────────
 
@@ -59,8 +79,9 @@ init -996 python in _aa_rt:
             if char is not None:
                 renpy.exports.say(char, text)
             else:
-                # Fallback: show as narrator with name prefix
-                renpy.exports.say(None, "[{}] {}".format(char_id, text))
+                # Fallback: narrator with a name prefix. Use parentheses (not
+                # square brackets) to avoid Ren'Py's [var] text interpolation.
+                renpy.exports.say(None, u"（{}）{}".format(char_id, text))
         else:
             renpy.exports.say(None, text)
 
@@ -71,24 +92,51 @@ init -996 python in _aa_rt:
 
     # ─── Scene helpers ─────────────────────────────────────────────
 
+    def _resolve_bg_displayable(bg_id):
+        """
+        Resolve a background id to a Ren'Py displayable.
+        - If assets.backgrounds[bg_id] has an image path that exists → use it.
+        - Otherwise fall back to a labeled solid color placeholder so scene
+          changes stay visible during asset-less previews.
+        """
+        bg_def = store._aa._background_defs.get(bg_id)
+        image_path = None
+        if bg_def:
+            image_path = bg_def.get("image") or bg_def.get("background")
+        if image_path:
+            try:
+                if renpy.exports.loadable(image_path):
+                    return image_path
+            except Exception:
+                pass
+        # Placeholder: deterministic color + name label overlay.
+        name = bg_def.get("name", bg_id) if bg_def else bg_id
+        colors = ["#2c3e50", "#34495e", "#3b3b58", "#4a3b52", "#3b524a", "#523b3b"]
+        color = colors[abs(hash(bg_id)) % len(colors)] if bg_id else "#222233"
+        try:
+            return renpy.store.Composite(
+                (1920, 1080),
+                (0, 0), renpy.store.Solid(color),
+                (60, 980), renpy.store.Text(u"【背景】" + str(name), size=40, color="#ffffffcc"),
+            )
+        except Exception:
+            return renpy.store.Solid(color)
+
     def _apply_scene(node):
         """Apply scene/show/bgm directives from a node dict."""
         scene = node.get("scene")
         if scene:
-            # e.g. "bg courtroom" → renpy.exports.scene() + show
-            # We use renpy.exports.scene() with the image tag then show the bg.
-            # Simplest cross-version approach: use the scene statement equivalent
             renpy.exports.scene(layer="master")
-            # Show the background image by name
             parts = scene.split()
+            bg_id = None
             if len(parts) == 2 and parts[0] == "bg":
-                try:
-                    renpy.exports.show(parts[1], tag="bg", layer="master")
-                except Exception:
-                    pass
+                bg_id = parts[1]
             elif len(parts) == 1:
+                bg_id = parts[0]
+            if bg_id:
                 try:
-                    renpy.exports.show(parts[0], tag=parts[0], layer="master")
+                    disp = _resolve_bg_displayable(bg_id)
+                    renpy.exports.show("bg", what=disp, tag="bg", layer="master")
                 except Exception:
                     pass
 
@@ -166,7 +214,7 @@ init -996 python in _aa_rt:
                 store.court_record.add_evidence(ev_id, ev_data)
                 _dbg_feedback(u"➕ 获得证据：{}".format(ev_id))
             else:
-                renpy.exports.say(None, "[AA Runtime] Unknown evidence: {}".format(ev_id))
+                renpy.exports.say(None, u"（运行时）未知证物：{}".format(ev_id))
         return node.get("next")
 
     # ─── set_flag ──────────────────────────────────────────────────
@@ -520,6 +568,9 @@ label aa_run_case(filepath="aa/case.json", entry=None):
 
     python:
         _aa_rt_case = aa_load_case(filepath)
+        # Self-contained assets: register evidence/characters/backgrounds from
+        # the editor's `assets` block. Idempotent + composes with legacy loaders.
+        aa_load_assets(_aa_rt_case.get("assets"))
         _aa_rt_entry = entry or _aa_rt_case.get("entry", "start")
 
     jump aa_run_node
