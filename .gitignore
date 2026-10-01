@@ -215,3 +215,6 @@ editor/node_modules/
 # TS build cache
 editor/*.tsbuildinfo
 editor/dist/
+
+# MyFlicker agent session state
+.myflicker/
